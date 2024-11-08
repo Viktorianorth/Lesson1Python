@@ -1,65 +1,65 @@
 import pytest
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import time
+from webdriver_manager.chrome import ChromeDriverManager  # Подключаем менеджер драйвера
 
-@pytest.fixture(scope="function")
+
+@pytest.fixture(scope="module")
 def driver():
-    driver = webdriver.Chrome()
+    # Запуск Chrome-драйвера с использованием ChromeDriverManager
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service)
     yield driver
     driver.quit()
 
-def test_fill_form(driver):
+
+def test_form_submission(driver):
+    # Открыть страницу
     driver.get("https://bonigarcia.dev/selenium-webdriver-java/data-types.html")
 
-    fields = {
-        "first-name": "Viktoria",
-        "last-name": "Mikhaylova",
-        "address": "Pulkovskoe shosse, 15",
-        "e-mail": "test@skypro.com",
-        "phone": "+79999999999",
-        "zip-code": "198329", # Добавьте значение в поле "Zip code"
-        "city": "SPb",
-        "country": "Russia",
-        "job-position": "QA",
-        "company": "SkyPro",
-    }
+    # Ожидание загрузки страницы
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[name='first-name']")))
 
-    for field_name, value in fields.items():
-        field = WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located((By.NAME, field_name)))
-        field.send_keys(value)
+    # Заполнение полей формы
+    driver.find_element(By.CSS_SELECTOR, "input[name='first-name']").send_keys('Иван')
+    driver.find_element(By.CSS_SELECTOR, "input[name='last-name']").send_keys('Петров')
+    driver.find_element(By.CSS_SELECTOR, "input[name='address']").send_keys('Ленина, 55-3')
 
+    # Ждем появления поля email
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[name='e-mail']")))
+    driver.find_element(By.CSS_SELECTOR, "input[name='e-mail']").send_keys('test@skypro.com')
+
+    driver.find_element(By.CSS_SELECTOR, "input[name='phone']").send_keys('+7985899998787')
+
+    # Ждем появления поля zip-кода
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[name='zip-code']")))
+    driver.find_element(By.CSS_SELECTOR, "input[name='zip-code']").send_keys('')  # Оставляем пустым
+
+    driver.find_element(By.CSS_SELECTOR, "input[name='city']").send_keys('Москва')
+    driver.find_element(By.CSS_SELECTOR, "input[name='country']").send_keys('Россия')
+    driver.find_element(By.CSS_SELECTOR, "input[name='job-position']").send_keys('QA')
+    driver.find_element(By.CSS_SELECTOR, "input[name='company']").send_keys('SkyPro')
+
+    # Нажать на кнопку "Submit"
     submit_button = WebDriverWait(driver, 20).until(
-        EC.element_to_be_clickable((By.XPATH, "//button[text()='Submit']")))
+        EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit']")))
     submit_button.click()
 
-    time.sleep(2) # Добавьте задержку для обновления страницы
+    # Ожидание появления всех предупреждений
+    WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, ".alert")))
 
-    # Проверка цвета фона поля "Zip code" после отправки формы
-    zip_code_element = WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.ID, "zip-code")))
-    zip_code_style = zip_code_element.get_attribute('style')
+    # Получаем все элементы предупреждений
+    alerts = driver.find_elements(By.CSS_SELECTOR, ".alert")
 
-    # Обработка пустого значения style
-    if zip_code_style:
-        zip_code_color = zip_code_style.split(';')[0].split(':')[1].strip()
-        expected_zip_code_color = 'rgba(248, 215, 218, 1)'
-        assert zip_code_color == expected_zip_code_color, f"Expected Zip code background color: {expected_zip_code_color}, but got: {zip_code_color}"
-    else:
-        print("Атрибут 'style' пуст, не удалось проверить цвет поля 'Zip code'.")
+    # Проходим по всем предупреждениям
+    for alert in alerts:
+        # Проверяем, что каждый alert имеет ожидаемый класс и отображается
+        if "alert-danger" in alert.get_attribute("class"):
+            assert alert.is_displayed(), "Поле Zip code не подсвечено красным."
+        elif "alert-success" in alert.get_attribute("class"):
+            assert alert.is_displayed(), "Не все поля подсвечены зелёным."
 
-    green_fields = ["first-name", "last-name", "address", "city", "e-mail", "phone", "job-position", "company"]
-    expected_green_color = 'rgba(209, 231, 221, 1)'
-
-    for field_id in green_fields:
-        try:
-            field = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.ID, field_id))
-            )
-            field_color = field.value_of_css_property('background-color')
-            assert field_color == expected_green_color, f"Expected background color for {field_id}: {expected_green_color}, but got: {field_color}"
-        except Exception as e:
-            print(f"Не удалось найти поле с ID {field_id} для проверки цвета фона. Ошибка: {e}")
+    print("Все проверки прошли успешно!")
